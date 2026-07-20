@@ -22,4 +22,5 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/auth/", include("users.urls")),
     path("api/donors/", include("donors.urls")),
+    path("api/hospitals/", include("hospitals.urls")),
 ]

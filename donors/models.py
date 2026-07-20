@@ -15,9 +15,9 @@ class DonorProfile(models.Model):
         on_delete=models.CASCADE,
         related_name='donor_profile'
     )
-    blood_type = models.CharField(max_length=3, choices=BLOOD_TYPE_CHOICES)
-    city = models.CharField(max_length=100)
-    is_available = models.BooleanField(default=True)
+    blood_type = models.CharField(max_length=3, choices=BLOOD_TYPE_CHOICES, blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    is_available = models.BooleanField(default=False)
     last_donation_date = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

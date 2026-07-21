@@ -9,6 +9,13 @@ class DonorProfile(models.Model):
         ('AB+', 'AB+'), ('AB-', 'AB-'),
         ('O+', 'O+'), ('O-', 'O-'),
     )
+
+    class Gender(models.TextChoices):
+        MALE = 'male', 'Male'
+        FEMALE = 'female', 'Female'
+        OTHER = 'other', 'Other'
+        PREFER_NOT_TO_SAY = 'prefer_not_to_say', 'Prefer not to say'
+
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -18,8 +25,14 @@ class DonorProfile(models.Model):
     city = models.CharField(max_length=100, blank=True)
     is_available = models.BooleanField(default=False)
     last_donation_date = models.DateField(null=True, blank=True)
+    date_of_birth = models.DateField(null=True, blank=True)
+    gender = models.CharField(max_length=20, choices=Gender.choices, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def total_donations(self):
+        return self.donations.count()
 
     def __str__(self):
         return f"{self.user.username} ({self.blood_type})"

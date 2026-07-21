@@ -4,15 +4,17 @@ from .models import DonorProfile, Donation
 
 class DonorProfileSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)
+    total_donations = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = DonorProfile
         fields = [
             'id', 'username', 'blood_type', 'city',
             'is_available', 'last_donation_date',
+            'date_of_birth', 'gender', 'total_donations',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'total_donations', 'created_at', 'updated_at']
 
     def validate(self, data):
         # Merge incoming data with existing instance values (for PATCH requests)

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import DonorProfile
+from .models import DonorProfile, Donation
 
 
 class DonorProfileSerializer(serializers.ModelSerializer):
@@ -19,9 +19,21 @@ class DonorProfileSerializer(serializers.ModelSerializer):
         blood_type = data.get('blood_type', getattr(self.instance, 'blood_type', ''))
         city = data.get('city', getattr(self.instance, 'city', ''))
         is_available = data.get('is_available', getattr(self.instance, 'is_available', False))
-
         if is_available and (not blood_type or not city):
             raise serializers.ValidationError(
                 "Complete your blood type and city before marking yourself available."
             )
         return data
+
+
+class DonationSerializer(serializers.ModelSerializer):
+    hospital_name = serializers.CharField(source='blood_request.hospital.hospital_name', read_only=True, default=None)
+    blood_type = serializers.CharField(source='blood_request.blood_type', read_only=True, default=None)
+
+    class Meta:
+        model = Donation
+        fields = [
+            'id', 'blood_request', 'hospital_name', 'blood_type',
+            'donation_date', 'units_donated', 'created_at'
+        ]
+        read_only_fields = ['id', 'donation_date', 'created_at']

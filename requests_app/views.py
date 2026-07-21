@@ -2,7 +2,7 @@ from rest_framework import generics, permissions
 from rest_framework.exceptions import PermissionDenied, NotFound
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from donors.models import DonorProfile
+from donors.models import DonorProfile, Donation
 from .models import BloodRequest
 from .serializers import BloodRequestSerializer, MatchedDonorSerializer
 from .compatibility import get_compatible_donor_types
@@ -116,6 +116,8 @@ class FulfillRequestView(APIView):
     """
     POST /api/requests/<id>/fulfill/
     Hospital-owner only. Marks an in_progress request as fulfilled.
+    Creates a Donation record for the matched donor and updates
+    their last_donation_date.
     """
     permission_classes = [permissions.IsAuthenticated]
 
@@ -136,6 +138,15 @@ class FulfillRequestView(APIView):
 
         blood_request.status = 'fulfilled'
         blood_request.save()
+
+        if blood_request.matched_donor:
+            donation = Donation.objects.create(
+                donor=blood_request.matched_donor,
+                blood_request=blood_request,
+                units_donated=blood_request.units_needed,
+            )
+            blood_request.matched_donor.last_donation_date = donation.donation_date
+            blood_request.matched_donor.save()
 
         serializer = BloodRequestSerializer(blood_request)
         return Response(serializer.data)

@@ -26,6 +26,7 @@ urlpatterns = [
     path("api/requests/", include("requests_app.urls")),
     path("api/admin/", include("admin_api.urls")),
     path("api/notifications/", include("notifications.urls")),
+    path("api/messages/", include("messaging.urls")),
 ]
 
 if settings.DEBUG:

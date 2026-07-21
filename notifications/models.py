@@ -9,6 +9,7 @@ class Notification(models.Model):
         REQUEST_FULFILLED = 'request_fulfilled', 'Request Fulfilled'
         REQUEST_CANCELLED = 'request_cancelled', 'Request Cancelled'
         HOSPITAL_VERIFIED = 'hospital_verified', 'Hospital Verified'
+        MESSAGE = 'message', 'New Message'
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,

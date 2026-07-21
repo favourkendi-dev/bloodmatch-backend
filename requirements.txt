@@ -23,3 +23,6 @@ psycopg2-binary>=2.9.0
 
 # Environment variables
 python-dotenv>=1.0.0
+
+# Database URL parser (for Render, Railway, Heroku)
+dj-database-url>=2.0.0

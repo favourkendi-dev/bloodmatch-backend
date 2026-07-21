@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: bloodmatch-backend
+    runtime: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn bloodmatch.wsgi:application"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: DJANGO_SETTINGS_MODULE
+        value: bloodmatch.settings_production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: WEB_CONCURRENCY
+        value: "4"
+    databases:
+      - name: bloodmatch-db
+        databaseName: bloodmatch
+        user: bloodmatch
+        plan: free

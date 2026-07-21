@@ -23,6 +23,11 @@ class DonorProfile(models.Model):
     )
     blood_type = models.CharField(max_length=3, choices=BLOOD_TYPE_CHOICES, blank=True)
     city = models.CharField(max_length=100, blank=True)
+
+    # Month 4: geolocation
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+
     is_available = models.BooleanField(default=False)
     last_donation_date = models.DateField(null=True, blank=True)
     date_of_birth = models.DateField(null=True, blank=True)

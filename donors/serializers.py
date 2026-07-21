@@ -10,6 +10,7 @@ class DonorProfileSerializer(serializers.ModelSerializer):
         model = DonorProfile
         fields = [
             'id', 'username', 'blood_type', 'city',
+            'latitude', 'longitude',
             'is_available', 'last_donation_date',
             'date_of_birth', 'gender', 'total_donations',
             'created_at', 'updated_at'

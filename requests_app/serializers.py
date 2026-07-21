@@ -10,8 +10,8 @@ class BloodRequestSerializer(serializers.ModelSerializer):
         model = BloodRequest
         fields = [
             'id', 'hospital_name', 'blood_type', 'units_needed',
-            'urgency', 'city', 'status', 'donor_confirmed',
-            'matched_donor_username', 'notes',
+            'urgency', 'city', 'latitude', 'longitude', 'status',
+            'donor_confirmed', 'matched_donor_username', 'notes',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']

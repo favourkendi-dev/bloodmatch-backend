@@ -9,6 +9,7 @@ class HospitalProfileSerializer(serializers.ModelSerializer):
         model = HospitalProfile
         fields = [
             'id', 'username', 'hospital_name', 'city',
+            'latitude', 'longitude',
             'contact_phone', 'registration_no', 'license_document',
             'is_verified', 'verified_by', 'verified_at',
             'created_at', 'updated_at'

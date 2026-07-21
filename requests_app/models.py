@@ -38,6 +38,11 @@ class BloodRequest(models.Model):
     units_needed = models.PositiveIntegerField(default=1)
     urgency = models.CharField(max_length=10, choices=URGENCY_CHOICES, default='normal')
     city = models.CharField(max_length=100)
+
+    # Month 4: geolocation
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='open')
     donor_confirmed = models.BooleanField(default=False)
     notes = models.TextField(blank=True)

@@ -9,6 +9,11 @@ class HospitalProfileSerializer(serializers.ModelSerializer):
         model = HospitalProfile
         fields = [
             'id', 'username', 'hospital_name', 'city',
-            'contact_phone', 'created_at', 'updated_at'
+            'contact_phone', 'registration_no', 'license_document',
+            'is_verified', 'verified_by', 'verified_at',
+            'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'is_verified', 'verified_by', 'verified_at',
+            'created_at', 'updated_at'
+        ]

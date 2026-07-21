@@ -7,15 +7,21 @@ from requests_app.models import BloodRequest
 class AdminHospitalSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)
     email = serializers.CharField(source='user.email', read_only=True)
+    verified_by_username = serializers.CharField(source='verified_by.username', read_only=True, default=None)
 
     class Meta:
         model = HospitalProfile
         fields = [
             'id', 'username', 'email', 'hospital_name',
-            'city', 'contact_phone', 'is_verified',
+            'city', 'contact_phone', 'registration_no', 'license_document',
+            'is_verified', 'verified_by_username', 'verified_at',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'registration_no', 'license_document',
+            'is_verified', 'verified_by_username', 'verified_at',
+            'created_at', 'updated_at'
+        ]
 
 
 class AdminDonorSerializer(serializers.ModelSerializer):

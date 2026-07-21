@@ -1,3 +1,4 @@
+from django.utils import timezone
 from rest_framework import generics, permissions
 from rest_framework.exceptions import NotFound
 from rest_framework.views import APIView
@@ -22,7 +23,8 @@ class AdminHospitalListView(generics.ListAPIView):
 class VerifyHospitalView(APIView):
     """
     POST /api/admin/hospitals/<id>/verify/
-    Admin-only. Marks a hospital as verified.
+    Admin-only. Marks a hospital as verified and records the audit trail
+    (which admin verified it, and when).
     """
     permission_classes = [permissions.IsAuthenticated, IsAdminRole]
 
@@ -31,10 +33,10 @@ class VerifyHospitalView(APIView):
             hospital = HospitalProfile.objects.get(pk=pk)
         except HospitalProfile.DoesNotExist:
             raise NotFound("Hospital not found.")
-
         hospital.is_verified = True
+        hospital.verified_by = request.user
+        hospital.verified_at = timezone.now()
         hospital.save()
-
         serializer = AdminHospitalSerializer(hospital)
         return Response(serializer.data)
 
@@ -72,10 +74,8 @@ class AdminCancelRequestView(APIView):
             blood_request = BloodRequest.objects.get(pk=pk)
         except BloodRequest.DoesNotExist:
             raise NotFound("Blood request not found.")
-
         blood_request.status = 'cancelled'
         blood_request.save()
-
         serializer = AdminBloodRequestSerializer(blood_request)
         return Response(serializer.data)
 

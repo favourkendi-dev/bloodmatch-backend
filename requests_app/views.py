@@ -108,6 +108,13 @@ class SelectDonorView(APIView):
         blood_request.status = 'in_progress'
         blood_request.save()
 
+        Donation.objects.create(
+            donor=donor,
+            blood_request=blood_request,
+            units_donated=blood_request.units_needed,
+            status=Donation.Status.PENDING,
+        )
+
         serializer = BloodRequestSerializer(blood_request)
         return Response(serializer.data)
 
@@ -140,13 +147,14 @@ class FulfillRequestView(APIView):
         blood_request.save()
 
         if blood_request.matched_donor:
-            donation = Donation.objects.create(
-                donor=blood_request.matched_donor,
-                blood_request=blood_request,
-                units_donated=blood_request.units_needed,
-            )
-            blood_request.matched_donor.last_donation_date = donation.donation_date
-            blood_request.matched_donor.save()
+            donation = blood_request.donation_record.exclude(
+                status__in=[Donation.Status.CANCELLED, Donation.Status.DECLINED]
+            ).first()
+            if donation:
+                donation.status = Donation.Status.COMPLETED
+                donation.save()
+                blood_request.matched_donor.last_donation_date = donation.donation_date
+                blood_request.matched_donor.save()
 
         serializer = BloodRequestSerializer(blood_request)
         return Response(serializer.data)
@@ -173,6 +181,13 @@ class CancelRequestView(APIView):
                 {"detail": f"Cannot cancel a request with status '{blood_request.status}'."},
                 status=400
             )
+
+        donation = blood_request.donation_record.filter(
+            status__in=[Donation.Status.PENDING, Donation.Status.ACCEPTED]
+        ).first()
+        if donation:
+            donation.status = Donation.Status.CANCELLED
+            donation.save()
 
         blood_request.status = 'cancelled'
         blood_request.save()
@@ -206,6 +221,11 @@ class AcceptDonorRequestView(APIView):
         blood_request.donor_confirmed = True
         blood_request.save()
 
+        donation = blood_request.donation_record.filter(status=Donation.Status.PENDING).first()
+        if donation:
+            donation.status = Donation.Status.ACCEPTED
+            donation.save()
+
         serializer = BloodRequestSerializer(blood_request)
         return Response(serializer.data)
 
@@ -231,6 +251,11 @@ class DeclineDonorRequestView(APIView):
                 {"detail": "This request is not awaiting your confirmation."},
                 status=400
             )
+
+        donation = blood_request.donation_record.filter(status=Donation.Status.PENDING).first()
+        if donation:
+            donation.status = Donation.Status.DECLINED
+            donation.save()
 
         blood_request.matched_donor = None
         blood_request.status = 'open'

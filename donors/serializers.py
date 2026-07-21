@@ -35,7 +35,7 @@ class DonationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Donation
         fields = [
-            'id', 'blood_request', 'hospital_name', 'blood_type',
+            'id', 'status', 'blood_request', 'hospital_name', 'blood_type',
             'donation_date', 'units_donated', 'created_at'
         ]
-        read_only_fields = ['id', 'donation_date', 'created_at']
+        read_only_fields = ['id', 'status', 'donation_date', 'created_at']

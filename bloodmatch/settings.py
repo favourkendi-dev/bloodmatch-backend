@@ -39,12 +39,11 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
-    # Third-party apps
     'rest_framework',            # lets us build REST APIs
     'rest_framework_simplejwt',  # handles JWT login tokens
     'corsheaders',                # allows our React frontend to call this API
 
-    # Our own apps (one per feature)
+    # Our own apps 
     'users',
     'donors',
     'admin_api',

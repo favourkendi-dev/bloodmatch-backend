@@ -6,6 +6,10 @@ from donors.models import DonorProfile, Donation
 from .models import BloodRequest
 from .serializers import BloodRequestSerializer, MatchedDonorSerializer
 from .compatibility import get_compatible_donor_types
+from .geo import calculate_distance_km
+
+# Maximum distance (in km) a donor can be from a request to be considered a match.
+MATCH_RADIUS_KM = 50
 
 
 class IsHospitalOwnerOrReadOnly(permissions.BasePermission):
@@ -17,6 +21,46 @@ class IsHospitalOwnerOrReadOnly(permissions.BasePermission):
         if request.method in permissions.SAFE_METHODS:
             return True
         return obj.hospital.user == request.user
+
+
+def get_eligible_donors(blood_request, compatible_types):
+    """
+    Returns a list of eligible DonorProfile objects for a request, with
+    `_distance_km` attached to each (or None if distance couldn't be calculated).
+
+    - If the request has coordinates: donors WITH coordinates are filtered to
+      within MATCH_RADIUS_KM and get a real _distance_km. Donors WITHOUT
+      coordinates fall back to a city text-match, with _distance_km=None.
+    - If the request has no coordinates: everyone falls back to city text-match.
+    """
+    candidates = DonorProfile.objects.filter(
+        blood_type__in=compatible_types,
+        is_available=True,
+    )
+
+    request_has_coords = blood_request.latitude is not None and blood_request.longitude is not None
+
+    eligible = []
+    for donor in candidates:
+        donor_has_coords = donor.latitude is not None and donor.longitude is not None
+
+        if request_has_coords and donor_has_coords:
+            distance = calculate_distance_km(
+                blood_request.latitude, blood_request.longitude,
+                donor.latitude, donor.longitude,
+            )
+            if distance <= MATCH_RADIUS_KM:
+                donor._distance_km = distance
+                eligible.append(donor)
+        else:
+            # Fall back to city match when either side lacks coordinates
+            if donor.city == blood_request.city:
+                donor._distance_km = None
+                eligible.append(donor)
+
+    # Closest first; donors with unknown distance (None) sort last
+    eligible.sort(key=lambda d: (d._distance_km is None, d._distance_km))
+    return eligible
 
 
 class BloodRequestListCreateView(generics.ListCreateAPIView):
@@ -45,8 +89,9 @@ class BloodRequestDetailView(generics.RetrieveUpdateAPIView):
 class MatchingDonorsView(APIView):
     """
     GET /api/requests/<id>/matches/
-    Returns compatible, available, same-city donors for this request.
-    Hospital-owner only.
+    Returns compatible, available donors within MATCH_RADIUS_KM of this
+    request (or same-city, for donors/requests without coordinates yet),
+    sorted closest first. Hospital-owner only.
     """
     permission_classes = [permissions.IsAuthenticated]
 
@@ -60,11 +105,7 @@ class MatchingDonorsView(APIView):
             raise PermissionDenied("Only the owning hospital can view matches for this request.")
 
         compatible_types = get_compatible_donor_types(blood_request.blood_type)
-        donors = DonorProfile.objects.filter(
-            blood_type__in=compatible_types,
-            city=blood_request.city,
-            is_available=True,
-        )
+        donors = get_eligible_donors(blood_request, compatible_types)
         serializer = MatchedDonorSerializer(donors, many=True)
         return Response(serializer.data)
 
@@ -91,14 +132,10 @@ class SelectDonorView(APIView):
             return Response({"detail": "donor_id is required."}, status=400)
 
         compatible_types = get_compatible_donor_types(blood_request.blood_type)
-        try:
-            donor = DonorProfile.objects.get(
-                id=donor_id,
-                blood_type__in=compatible_types,
-                city=blood_request.city,
-                is_available=True,
-            )
-        except DonorProfile.DoesNotExist:
+        eligible_donors = get_eligible_donors(blood_request, compatible_types)
+        donor = next((d for d in eligible_donors if str(d.id) == str(donor_id)), None)
+
+        if donor is None:
             return Response(
                 {"detail": "Donor not found or not eligible for this request."},
                 status=400

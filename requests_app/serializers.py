@@ -23,3 +23,10 @@ class MatchedDonorSerializer(serializers.Serializer):
     blood_type = serializers.CharField()
     city = serializers.CharField()
     phone_number = serializers.CharField(source='user.phone_number')
+    distance_km = serializers.SerializerMethodField()
+
+    def get_distance_km(self, obj):
+        # obj._distance_km is set manually in the view before serialization,
+        # since it's a calculated value, not a model field.
+        value = getattr(obj, '_distance_km', None)
+        return round(value, 1) if value is not None else None

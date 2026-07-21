@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     'rest_framework',            # lets us build REST APIs
     'rest_framework_simplejwt',  # handles JWT login tokens
     'corsheaders',                # allows our React frontend to call this API
+    'drf_spectacular',            # auto-generates API docs
 
     # Our own apps 
     'users',
@@ -74,6 +75,9 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'bloodmatch.wsgi.application'
+
+# Custom user model
+AUTH_USER_MODEL = 'users.User'
 
 
 # Database
@@ -140,6 +144,16 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    # Rate limiting - prevents spam/abuse
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/day',      # unauthenticated users: 100 requests per day
+        'user': '1000/day',     # logged-in users: 1000 requests per day
+    },
 }
 
 # JWT settings
@@ -150,5 +164,13 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
 }
 
-# CORS settings
+# CORS settings - development only
 CORS_ALLOW_ALL_ORIGINS = True
+
+# API Documentation settings
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'BloodMatch API',
+    'DESCRIPTION': 'API for matching blood donors with hospitals in need.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+}

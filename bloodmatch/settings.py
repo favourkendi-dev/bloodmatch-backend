@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     # Our own apps (one per feature)
     'users',
     'donors',
+    'admin_api',
     'hospitals',
     'requests_app',
     'notifications',

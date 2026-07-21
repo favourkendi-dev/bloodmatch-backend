@@ -10,13 +10,11 @@ class BloodRequest(models.Model):
         ('AB+', 'AB+'), ('AB-', 'AB-'),
         ('O+', 'O+'), ('O-', 'O-'),
     )
-
     URGENCY_CHOICES = (
         ('normal', 'Normal'),
         ('urgent', 'Urgent'),
         ('critical', 'Critical'),
     )
-
     STATUS_CHOICES = (
         ('open', 'Open'),
         ('in_progress', 'In Progress'),
@@ -41,6 +39,7 @@ class BloodRequest(models.Model):
     urgency = models.CharField(max_length=10, choices=URGENCY_CHOICES, default='normal')
     city = models.CharField(max_length=100)
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='open')
+    donor_confirmed = models.BooleanField(default=False)
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

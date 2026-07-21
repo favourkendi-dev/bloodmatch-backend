@@ -110,3 +110,137 @@ class SelectDonorView(APIView):
 
         serializer = BloodRequestSerializer(blood_request)
         return Response(serializer.data)
+
+
+class FulfillRequestView(APIView):
+    """
+    POST /api/requests/<id>/fulfill/
+    Hospital-owner only. Marks an in_progress request as fulfilled.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            blood_request = BloodRequest.objects.get(pk=pk)
+        except BloodRequest.DoesNotExist:
+            raise NotFound("Blood request not found.")
+
+        if not hasattr(request.user, 'hospital_profile') or blood_request.hospital.user != request.user:
+            raise PermissionDenied("Only the owning hospital can fulfill this request.")
+
+        if blood_request.status != 'in_progress':
+            return Response(
+                {"detail": f"Cannot fulfill a request with status '{blood_request.status}'. Must be 'in_progress'."},
+                status=400
+            )
+
+        blood_request.status = 'fulfilled'
+        blood_request.save()
+
+        serializer = BloodRequestSerializer(blood_request)
+        return Response(serializer.data)
+
+
+class CancelRequestView(APIView):
+    """
+    POST /api/requests/<id>/cancel/
+    Hospital-owner only. Cancels a request that's open or in_progress.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            blood_request = BloodRequest.objects.get(pk=pk)
+        except BloodRequest.DoesNotExist:
+            raise NotFound("Blood request not found.")
+
+        if not hasattr(request.user, 'hospital_profile') or blood_request.hospital.user != request.user:
+            raise PermissionDenied("Only the owning hospital can cancel this request.")
+
+        if blood_request.status not in ('open', 'in_progress'):
+            return Response(
+                {"detail": f"Cannot cancel a request with status '{blood_request.status}'."},
+                status=400
+            )
+
+        blood_request.status = 'cancelled'
+        blood_request.save()
+
+        serializer = BloodRequestSerializer(blood_request)
+        return Response(serializer.data)
+
+
+class AcceptDonorRequestView(APIView):
+    """
+    POST /api/requests/<id>/accept/
+    Matched-donor only. Confirms the donor accepts this request.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            blood_request = BloodRequest.objects.get(pk=pk)
+        except BloodRequest.DoesNotExist:
+            raise NotFound("Blood request not found.")
+
+        if not hasattr(request.user, 'donor_profile') or blood_request.matched_donor != request.user.donor_profile:
+            raise PermissionDenied("Only the matched donor can accept this request.")
+
+        if blood_request.status != 'in_progress' or blood_request.donor_confirmed:
+            return Response(
+                {"detail": "This request is not awaiting your confirmation."},
+                status=400
+            )
+
+        blood_request.donor_confirmed = True
+        blood_request.save()
+
+        serializer = BloodRequestSerializer(blood_request)
+        return Response(serializer.data)
+
+
+class DeclineDonorRequestView(APIView):
+    """
+    POST /api/requests/<id>/decline/
+    Matched-donor only. Declines the request, freeing it up for another donor.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            blood_request = BloodRequest.objects.get(pk=pk)
+        except BloodRequest.DoesNotExist:
+            raise NotFound("Blood request not found.")
+
+        if not hasattr(request.user, 'donor_profile') or blood_request.matched_donor != request.user.donor_profile:
+            raise PermissionDenied("Only the matched donor can decline this request.")
+
+        if blood_request.status != 'in_progress' or blood_request.donor_confirmed:
+            return Response(
+                {"detail": "This request is not awaiting your confirmation."},
+                status=400
+            )
+
+        blood_request.matched_donor = None
+        blood_request.status = 'open'
+        blood_request.donor_confirmed = False
+        blood_request.save()
+
+        serializer = BloodRequestSerializer(blood_request)
+        return Response(serializer.data)
+
+
+class MyMatchedRequestsView(generics.ListAPIView):
+    """
+    GET /api/requests/my_matches/
+    Donor-only. Returns all requests this donor has been matched to,
+    regardless of status (in_progress, fulfilled, cancelled).
+    """
+    serializer_class = BloodRequestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if not hasattr(user, 'donor_profile'):
+            return BloodRequest.objects.none()
+        return BloodRequest.objects.filter(matched_donor=user.donor_profile).order_by('-updated_at')

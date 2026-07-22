@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: bloodmatch
+      POSTGRES_USER: bloodmatch
+      POSTGRES_PASSWORD: bloodmatch_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bloodmatch -d bloodmatch"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             gunicorn bloodmatch.wsgi:application --bind 0.0.0.0:8000 --workers 4"
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=False
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - DATABASE_URL=postgres://bloodmatch:bloodmatch_pass@db:5432/bloodmatch
+      - DATABASE_SSL=False
+      - DJANGO_SETTINGS_MODULE=bloodmatch.settings_production
+      - ALLOWED_HOSTS=localhost,127.0.0.1
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

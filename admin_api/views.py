@@ -1,5 +1,6 @@
 from django.utils import timezone
-from rest_framework import generics, permissions
+from drf_spectacular.utils import extend_schema
+from rest_framework import generics, permissions, serializers
 from rest_framework.exceptions import NotFound
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -8,6 +9,15 @@ from donors.models import DonorProfile
 from requests_app.models import BloodRequest
 from .serializers import AdminHospitalSerializer, AdminDonorSerializer, AdminBloodRequestSerializer
 from .permissions import IsAdminRole
+
+
+class AdminReportsResponseSerializer(serializers.Serializer):
+    total_donors = serializers.IntegerField()
+    total_hospitals = serializers.IntegerField()
+    verified_hospitals = serializers.IntegerField()
+    unverified_hospitals = serializers.IntegerField()
+    total_requests = serializers.IntegerField()
+    requests_by_status = serializers.DictField()
 
 
 class AdminHospitalListView(generics.ListAPIView):
@@ -28,6 +38,7 @@ class VerifyHospitalView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated, IsAdminRole]
 
+    @extend_schema(summary="Verify a hospital account", request=None, responses=AdminHospitalSerializer)
     def post(self, request, pk):
         try:
             hospital = HospitalProfile.objects.get(pk=pk)
@@ -69,6 +80,7 @@ class AdminCancelRequestView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated, IsAdminRole]
 
+    @extend_schema(summary="Force-cancel a blood request", request=None, responses=AdminBloodRequestSerializer)
     def post(self, request, pk):
         try:
             blood_request = BloodRequest.objects.get(pk=pk)
@@ -87,6 +99,7 @@ class AdminReportsView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated, IsAdminRole]
 
+    @extend_schema(summary="Get basic platform stats", responses=AdminReportsResponseSerializer)
     def get(self, request):
         data = {
             "total_donors": DonorProfile.objects.count(),

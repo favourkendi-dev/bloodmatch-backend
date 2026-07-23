@@ -1,6 +1,9 @@
-from rest_framework import generics
+from rest_framework import generics, permissions
 from rest_framework.permissions import IsAuthenticated
-from .models import DonorProfile
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from django.db import models
+from .models import DonorProfile, Donation
 from .serializers import DonorProfileSerializer, DonationSerializer
 
 
@@ -24,3 +27,64 @@ class MyDonationHistoryView(generics.ListAPIView):
     def get_queryset(self):
         profile, created = DonorProfile.objects.get_or_create(user=self.request.user)
         return profile.donations.all().order_by('-donation_date')
+
+
+class LeaderboardView(APIView):
+    """
+    GET /api/donors/leaderboard/
+    Returns top 20 donors by total completed donations.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        donors = DonorProfile.objects.annotate(
+            donation_count=models.Count('donations', filter=models.Q(donations__status=Donation.Status.COMPLETED))
+        ).filter(donation_count__gt=0).order_by('-donation_count', '-updated_at')[:20]
+
+        data = []
+        for d in donors:
+            data.append({
+                'id': d.id,
+                'username': d.user.username,
+                'blood_type': d.blood_type,
+                'total_donations': d.donation_count,
+            })
+        return Response(data)
+
+
+
+
+class PublicDonorListView(generics.ListAPIView):
+    """
+    GET /api/donors/
+    Public endpoint. Returns basic info about available donors.
+    """
+    serializer_class = DonorProfileSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        return DonorProfile.objects.filter(is_available=True).select_related('user')
+
+
+class PublicDonorListView(generics.ListAPIView):
+    """
+    GET /api/donors/
+    Public endpoint. Returns basic info about available donors.
+    """
+    serializer_class = DonorProfileSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        return DonorProfile.objects.filter(is_available=True).select_related('user')
+
+
+class PublicDonorListView(generics.ListAPIView):
+    """
+    GET /api/donors/
+    Public endpoint. Returns basic info about available donors.
+    """
+    serializer_class = DonorProfileSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        return DonorProfile.objects.filter(is_available=True).select_related('user')

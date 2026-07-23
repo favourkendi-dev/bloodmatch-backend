@@ -33,6 +33,7 @@ class DonorProfile(models.Model):
     date_of_birth = models.DateField(null=True, blank=True)
     gender = models.CharField(max_length=20, choices=Gender.choices, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    max_distance_km = models.PositiveIntegerField(default=50)
     updated_at = models.DateTimeField(auto_now=True)
 
     @property
@@ -74,3 +75,38 @@ class Donation(models.Model):
 
     def __str__(self):
         return f"{self.donor.user.username} donated {self.units_donated} unit(s) on {self.donation_date}"
+
+
+class DonorHealthCheck(models.Model):
+    """
+    A self-declared pre-screening questionnaire, submitted by the donor
+    at the moment they volunteer for or are selected for a request.
+    This is NOT a substitute for the hospital's own medical screening --
+    it's a pre-filter so hospitals aren't contacting donors who would be
+    turned away on-site.
+    """
+    donation = models.OneToOneField(
+        Donation,
+        on_delete=models.CASCADE,
+        related_name='health_check'
+    )
+    feeling_well = models.BooleanField(default=False)
+    no_recent_tattoo_or_piercing = models.BooleanField(default=False)
+    no_recent_travel_risk = models.BooleanField(default=False)
+    not_on_medication = models.BooleanField(default=False)
+    meets_weight_minimum = models.BooleanField(default=False)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def passed(self):
+        return all([
+            self.feeling_well,
+            self.no_recent_tattoo_or_piercing,
+            self.no_recent_travel_risk,
+            self.not_on_medication,
+            self.meets_weight_minimum,
+        ])
+
+    def __str__(self):
+        status = "passed" if self.passed else "flagged"
+        return f"Health check for {self.donation} ({status})"

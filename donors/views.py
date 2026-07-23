@@ -1,4 +1,5 @@
-from rest_framework import generics, permissions
+from drf_spectacular.utils import extend_schema
+from rest_framework import generics, permissions, serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -29,6 +30,13 @@ class MyDonationHistoryView(generics.ListAPIView):
         return profile.donations.all().order_by('-donation_date')
 
 
+class LeaderboardEntrySerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    username = serializers.CharField()
+    blood_type = serializers.CharField()
+    total_donations = serializers.IntegerField()
+
+
 class LeaderboardView(APIView):
     """
     GET /api/donors/leaderboard/
@@ -36,6 +44,7 @@ class LeaderboardView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(summary="Get top 20 donors by completed donations", responses=LeaderboardEntrySerializer(many=True))
     def get(self, request):
         donors = DonorProfile.objects.annotate(
             donation_count=models.Count('donations', filter=models.Q(donations__status=Donation.Status.COMPLETED))
@@ -50,32 +59,6 @@ class LeaderboardView(APIView):
                 'total_donations': d.donation_count,
             })
         return Response(data)
-
-
-
-
-class PublicDonorListView(generics.ListAPIView):
-    """
-    GET /api/donors/
-    Public endpoint. Returns basic info about available donors.
-    """
-    serializer_class = DonorProfileSerializer
-    permission_classes = [permissions.AllowAny]
-
-    def get_queryset(self):
-        return DonorProfile.objects.filter(is_available=True).select_related('user')
-
-
-class PublicDonorListView(generics.ListAPIView):
-    """
-    GET /api/donors/
-    Public endpoint. Returns basic info about available donors.
-    """
-    serializer_class = DonorProfileSerializer
-    permission_classes = [permissions.AllowAny]
-
-    def get_queryset(self):
-        return DonorProfile.objects.filter(is_available=True).select_related('user')
 
 
 class PublicDonorListView(generics.ListAPIView):

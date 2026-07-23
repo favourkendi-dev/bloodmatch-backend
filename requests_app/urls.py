@@ -9,9 +9,12 @@ from .views import (
     AcceptDonorRequestView,
     DeclineDonorRequestView,
     MyMatchedRequestsView,
+    VolunteerForRequestView,
+    HospitalAnalyticsView,
 )
 
 urlpatterns = [
+    path('analytics/', HospitalAnalyticsView.as_view(), name='hospital_analytics'),
     path('', BloodRequestListCreateView.as_view(), name='request_list_create'),
     path('my_matches/', MyMatchedRequestsView.as_view(), name='my_matched_requests'),
     path('<int:pk>/', BloodRequestDetailView.as_view(), name='request_detail'),
@@ -21,4 +24,5 @@ urlpatterns = [
     path('<int:pk>/cancel/', CancelRequestView.as_view(), name='request_cancel'),
     path('<int:pk>/accept/', AcceptDonorRequestView.as_view(), name='request_accept'),
     path('<int:pk>/decline/', DeclineDonorRequestView.as_view(), name='request_decline'),
+    path('<int:pk>/volunteer/', VolunteerForRequestView.as_view(), name='request_volunteer'),
 ]

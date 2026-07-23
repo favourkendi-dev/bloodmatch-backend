@@ -2,10 +2,11 @@ from rest_framework import generics, permissions
 from rest_framework.exceptions import PermissionDenied, NotFound
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from donors.models import DonorProfile, Donation
+from donors.models import DonorProfile, Donation, DonorHealthCheck
 from .models import BloodRequest
 from .serializers import BloodRequestSerializer, MatchedDonorSerializer
 from .compatibility import get_compatible_donor_types
+from notifications.models import Notification
 from .geo import calculate_distance_km
 
 # Maximum distance (in km) a donor can be from a request to be considered a match.
@@ -49,7 +50,7 @@ def get_eligible_donors(blood_request, compatible_types):
                 blood_request.latitude, blood_request.longitude,
                 donor.latitude, donor.longitude,
             )
-            if distance <= MATCH_RADIUS_KM:
+            if distance <= donor.max_distance_km:
                 donor._distance_km = distance
                 eligible.append(donor)
         else:
@@ -80,10 +81,33 @@ class BloodRequestListCreateView(generics.ListCreateAPIView):
         serializer.save(hospital=user.hospital_profile)
 
 
-class BloodRequestDetailView(generics.RetrieveUpdateAPIView):
+class BloodRequestDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    GET    /api/requests/<id>/  -> anyone authenticated can view
+    PATCH  /api/requests/<id>/  -> hospital owner only, and only while status='open'
+    DELETE /api/requests/<id>/  -> hospital owner only, and only while status='open'
+
+    We only allow edit/delete while the request is still 'open' so we never
+    orphan a matched donor, a donation record, or an active chat thread.
+    """
     serializer_class = BloodRequestSerializer
     permission_classes = [permissions.IsAuthenticated, IsHospitalOwnerOrReadOnly]
     queryset = BloodRequest.objects.all()
+
+    def perform_update(self, serializer):
+        if serializer.instance.status != 'open':
+            raise PermissionDenied(
+                "This request can no longer be edited because a donor is already matched to it."
+            )
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if instance.status != 'open':
+            raise PermissionDenied(
+                "This request can no longer be deleted because a donor is already matched to it. "
+                "Cancel it instead."
+            )
+        instance.delete()
 
 
 class MatchingDonorsView(APIView):
@@ -126,6 +150,13 @@ class SelectDonorView(APIView):
 
         if not hasattr(request.user, 'hospital_profile') or blood_request.hospital.user != request.user:
             raise PermissionDenied("Only the owning hospital can select a donor for this request.")
+
+        # Lock: once a request is no longer open, nobody else can be matched to it.
+        if blood_request.status != 'open':
+            return Response(
+                {"detail": "This request already has a matched donor and is no longer open for selection."},
+                status=400
+            )
 
         donor_id = request.data.get('donor_id')
         if not donor_id:
@@ -255,6 +286,18 @@ class AcceptDonorRequestView(APIView):
                 status=400
             )
 
+        health_fields = [
+            'feeling_well', 'no_recent_tattoo_or_piercing',
+            'no_recent_travel_risk', 'not_on_medication',
+            'meets_weight_minimum',
+        ]
+        health_answers = {f: request.data.get(f) for f in health_fields}
+        if not all(health_answers.values()):
+            return Response(
+                {"detail": "You must confirm all health screening questions to accept."},
+                status=400
+            )
+
         blood_request.donor_confirmed = True
         blood_request.save()
 
@@ -262,6 +305,14 @@ class AcceptDonorRequestView(APIView):
         if donation:
             donation.status = Donation.Status.ACCEPTED
             donation.save()
+            DonorHealthCheck.objects.update_or_create(donation=donation, defaults=health_answers)
+
+        if blood_request.hospital and blood_request.hospital.user:
+            Notification.objects.create(
+                user=blood_request.hospital.user,
+                notification_type=Notification.NotificationType.REQUEST_MATCHED,
+                message=f"{request.user.username} has accepted your blood request for {blood_request.blood_type}."
+            )
 
         serializer = BloodRequestSerializer(blood_request)
         return Response(serializer.data)
@@ -271,6 +322,10 @@ class DeclineDonorRequestView(APIView):
     """
     POST /api/requests/<id>/decline/
     Matched-donor only. Declines the request, freeing it up for another donor.
+
+    Works whether the donor already confirmed (donor_confirmed=True) or not,
+    so a donor can change their mind even after accepting -- as long as the
+    hospital hasn't marked it fulfilled or cancelled yet.
     """
     permission_classes = [permissions.IsAuthenticated]
 
@@ -283,13 +338,17 @@ class DeclineDonorRequestView(APIView):
         if not hasattr(request.user, 'donor_profile') or blood_request.matched_donor != request.user.donor_profile:
             raise PermissionDenied("Only the matched donor can decline this request.")
 
-        if blood_request.status != 'in_progress' or blood_request.donor_confirmed:
+        if blood_request.status != 'in_progress':
             return Response(
-                {"detail": "This request is not awaiting your confirmation."},
+                {"detail": "This request is not currently matched to you."},
                 status=400
             )
 
-        donation = blood_request.donation_record.filter(status=Donation.Status.PENDING).first()
+        was_confirmed = blood_request.donor_confirmed
+
+        donation = blood_request.donation_record.filter(
+            status__in=[Donation.Status.PENDING, Donation.Status.ACCEPTED]
+        ).first()
         if donation:
             donation.status = Donation.Status.DECLINED
             donation.save()
@@ -298,6 +357,20 @@ class DeclineDonorRequestView(APIView):
         blood_request.status = 'open'
         blood_request.donor_confirmed = False
         blood_request.save()
+
+        if blood_request.hospital and blood_request.hospital.user:
+            note = (
+                f"{request.user.username} changed their mind and is no longer able to donate "
+                f"for your {blood_request.blood_type} request. It's open again."
+                if was_confirmed else
+                f"{request.user.username} declined your {blood_request.blood_type} blood request. "
+                f"It's open again."
+            )
+            Notification.objects.create(
+                user=blood_request.hospital.user,
+                notification_type=Notification.NotificationType.REQUEST_CANCELLED,
+                message=note,
+            )
 
         serializer = BloodRequestSerializer(blood_request)
         return Response(serializer.data)
@@ -317,3 +390,136 @@ class MyMatchedRequestsView(generics.ListAPIView):
         if not hasattr(user, 'donor_profile'):
             return BloodRequest.objects.none()
         return BloodRequest.objects.filter(matched_donor=user.donor_profile).order_by('-updated_at')
+
+
+class HospitalAnalyticsView(APIView):
+    """
+    GET /api/requests/analytics/
+    Hospital-only. Returns analytics data for the logged-in hospital.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        if not hasattr(request.user, 'hospital_profile'):
+            raise PermissionDenied("Only hospitals can view analytics.")
+
+        hospital = request.user.hospital_profile
+        requests = BloodRequest.objects.filter(hospital=hospital)
+
+        total = requests.count()
+        fulfilled = requests.filter(status='fulfilled').count()
+        cancelled = requests.filter(status='cancelled').count()
+        open_reqs = requests.filter(status='open').count()
+        in_progress = requests.filter(status='in_progress').count()
+
+        fulfillment_rate = round((fulfilled / total) * 100, 1) if total > 0 else 0
+
+        fulfilled_requests = requests.filter(status='fulfilled', matched_donor__isnull=False)
+        time_to_match_list = []
+        for req in fulfilled_requests:
+            if req.matched_donor:
+                time_to_match_list.append((req.updated_at - req.created_at).total_seconds() / 3600)
+
+        avg_time_to_match = round(sum(time_to_match_list) / len(time_to_match_list), 1) if time_to_match_list else 0
+
+        blood_type_counts = {}
+        for req in requests:
+            blood_type_counts[req.blood_type] = blood_type_counts.get(req.blood_type, 0) + 1
+
+        from django.utils import timezone
+        from datetime import timedelta
+        now = timezone.now()
+        months = []
+        for i in range(5, -1, -1):
+            month_start = (now.replace(day=1) - timedelta(days=i*30)).replace(day=1)
+            month_end = (month_start + timedelta(days=32)).replace(day=1)
+            count = requests.filter(created_at__gte=month_start, created_at__lt=month_end).count()
+            months.append({
+                'month': month_start.strftime('%b'),
+                'count': count
+            })
+
+        return Response({
+            'total_requests': total,
+            'fulfilled': fulfilled,
+            'cancelled': cancelled,
+            'open': open_reqs,
+            'in_progress': in_progress,
+            'fulfillment_rate': fulfillment_rate,
+            'avg_time_to_match_hours': avg_time_to_match,
+            'blood_type_demand': blood_type_counts,
+            'requests_per_month': months,
+        })
+
+
+class VolunteerForRequestView(APIView):
+    """
+    POST /api/requests/<id>/volunteer/
+    Donor-only. Allows a donor to volunteer for an open request directly.
+    Sets matched_donor to this donor and status='in_progress'.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            blood_request = BloodRequest.objects.get(pk=pk)
+        except BloodRequest.DoesNotExist:
+            raise NotFound("Blood request not found.")
+
+        if not hasattr(request.user, 'donor_profile'):
+            raise PermissionDenied("Only donors can volunteer for requests.")
+
+        if blood_request.status != 'open':
+            return Response(
+                {"detail": "This request is no longer open for volunteers."},
+                status=400
+            )
+
+        donor = request.user.donor_profile
+
+        compatible_types = get_compatible_donor_types(blood_request.blood_type)
+        if donor.blood_type not in compatible_types:
+            return Response(
+                {"detail": "Your blood type is not compatible with this request."},
+                status=400
+            )
+
+        if not donor.is_available:
+            return Response(
+                {"detail": "You must mark yourself as available to volunteer."},
+                status=400
+            )
+
+        health_fields = [
+            'feeling_well', 'no_recent_tattoo_or_piercing',
+            'no_recent_travel_risk', 'not_on_medication',
+            'meets_weight_minimum',
+        ]
+        health_answers = {f: request.data.get(f) for f in health_fields}
+        if not all(health_answers.values()):
+            return Response(
+                {"detail": "You must confirm all health screening questions to volunteer."},
+                status=400
+            )
+
+        blood_request.matched_donor = donor
+        blood_request.status = 'in_progress'
+        blood_request.save()
+
+        donation = Donation.objects.create(
+            donor=donor,
+            blood_request=blood_request,
+            units_donated=blood_request.units_needed,
+            status=Donation.Status.PENDING,
+        )
+        DonorHealthCheck.objects.update_or_create(donation=donation, defaults=health_answers)
+
+        if blood_request.hospital and blood_request.hospital.user:
+            Notification.objects.create(
+                user=blood_request.hospital.user,
+                notification_type=Notification.NotificationType.REQUEST_MATCHED,
+                message=f"{request.user.username} has volunteered for your {blood_request.blood_type} blood request."
+            )
+
+        serializer = BloodRequestSerializer(blood_request)
+        return Response(serializer.data)

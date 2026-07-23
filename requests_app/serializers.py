@@ -23,6 +23,7 @@ class MatchedDonorSerializer(serializers.Serializer):
     blood_type = serializers.CharField()
     city = serializers.CharField()
     phone_number = serializers.CharField(source='user.phone_number')
+    is_available = serializers.BooleanField()
     distance_km = serializers.SerializerMethodField()
 
     def get_distance_km(self, obj):

@@ -11,6 +11,7 @@ class RegisterSerializer(serializers.ModelSerializer):
     blood_type = serializers.ChoiceField(
         choices=DonorProfile.BLOOD_TYPE_CHOICES, required=False, allow_blank=True
     )
+    city = serializers.CharField(required=False, allow_blank=True)
     hospital_name = serializers.CharField(required=False, allow_blank=True)
     registration_no = serializers.CharField(required=False, allow_blank=True)
 
@@ -18,11 +19,12 @@ class RegisterSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'username', 'email', 'password', 'role', 'phone_number',
-            'blood_type', 'hospital_name', 'registration_no',
+            'blood_type', 'city', 'hospital_name', 'registration_no',
         ]
 
     def create(self, validated_data):
         blood_type = validated_data.pop('blood_type', '')
+        city = validated_data.pop('city', '')
         hospital_name = validated_data.pop('hospital_name', '')
         registration_no = validated_data.pop('registration_no', '')
 
@@ -38,6 +40,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             DonorProfile.objects.create(
                 user=user,
                 blood_type=blood_type,
+                city=city,
             )
         elif user.role == 'hospital':
             HospitalProfile.objects.create(

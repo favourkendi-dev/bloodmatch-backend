@@ -1,4 +1,5 @@
-from rest_framework import generics, permissions
+from drf_spectacular.utils import extend_schema, OpenApiResponse
+from rest_framework import generics, serializers, permissions
 from rest_framework.exceptions import PermissionDenied, NotFound
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -64,7 +65,35 @@ def get_eligible_donors(blood_request, compatible_types):
     return eligible
 
 
+class DonorIdRequestSerializer(serializers.Serializer):
+    donor_id = serializers.IntegerField(help_text="ID of the DonorProfile to match to this request.")
+
+
+class HealthScreeningSerializer(serializers.Serializer):
+    feeling_well = serializers.BooleanField()
+    no_recent_tattoo_or_piercing = serializers.BooleanField()
+    no_recent_travel_risk = serializers.BooleanField()
+    not_on_medication = serializers.BooleanField()
+    meets_weight_minimum = serializers.BooleanField()
+
+
+class HospitalAnalyticsResponseSerializer(serializers.Serializer):
+    total_requests = serializers.IntegerField()
+    fulfilled = serializers.IntegerField()
+    cancelled = serializers.IntegerField()
+    open = serializers.IntegerField()
+    in_progress = serializers.IntegerField()
+    fulfillment_rate = serializers.FloatField()
+    avg_time_to_match_hours = serializers.FloatField()
+    blood_type_demand = serializers.DictField()
+    requests_per_month = serializers.ListField()
+
+
 class BloodRequestListCreateView(generics.ListCreateAPIView):
+    """
+    GET  /api/requests/  -> Hospitals see their own requests; everyone else sees open requests.
+    POST /api/requests/  -> Hospital-owner only. Creates a new blood request.
+    """
     serializer_class = BloodRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -119,6 +148,10 @@ class MatchingDonorsView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        summary="List matching donors for a blood request",
+        responses={200: MatchedDonorSerializer(many=True)},
+    )
     def get(self, request, pk):
         try:
             blood_request = BloodRequest.objects.get(pk=pk)
@@ -142,6 +175,14 @@ class SelectDonorView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        summary="Select a donor for a blood request",
+        request=DonorIdRequestSerializer,
+        responses={
+            200: BloodRequestSerializer,
+            400: OpenApiResponse(description="Missing donor_id, donor ineligible, or request already matched."),
+        },
+    )
     def post(self, request, pk):
         try:
             blood_request = BloodRequest.objects.get(pk=pk)
@@ -196,6 +237,14 @@ class FulfillRequestView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        summary="Mark a blood request as fulfilled",
+        request=None,
+        responses={
+            200: BloodRequestSerializer,
+            400: OpenApiResponse(description="Request is not currently in_progress."),
+        },
+    )
     def post(self, request, pk):
         try:
             blood_request = BloodRequest.objects.get(pk=pk)
@@ -235,6 +284,7 @@ class CancelRequestView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(summary="Cancel a blood request", request=None, responses=BloodRequestSerializer)
     def post(self, request, pk):
         try:
             blood_request = BloodRequest.objects.get(pk=pk)
@@ -271,6 +321,11 @@ class AcceptDonorRequestView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        summary="Accept a matched blood request",
+        request=HealthScreeningSerializer,
+        responses=BloodRequestSerializer,
+    )
     def post(self, request, pk):
         try:
             blood_request = BloodRequest.objects.get(pk=pk)
@@ -329,6 +384,7 @@ class DeclineDonorRequestView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(summary="Decline a matched blood request", request=None, responses=BloodRequestSerializer)
     def post(self, request, pk):
         try:
             blood_request = BloodRequest.objects.get(pk=pk)
@@ -399,6 +455,7 @@ class HospitalAnalyticsView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(summary="Get analytics for the logged-in hospital", responses=HospitalAnalyticsResponseSerializer)
     def get(self, request):
         if not hasattr(request.user, 'hospital_profile'):
             raise PermissionDenied("Only hospitals can view analytics.")
@@ -460,6 +517,11 @@ class VolunteerForRequestView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        summary="Volunteer as a donor for an open blood request",
+        request=HealthScreeningSerializer,
+        responses=BloodRequestSerializer,
+    )
     def post(self, request, pk):
         try:
             blood_request = BloodRequest.objects.get(pk=pk)

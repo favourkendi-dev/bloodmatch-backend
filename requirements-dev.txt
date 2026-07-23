@@ -1,4 +1,2 @@
 django-extensions
 pydot
-django-extensions
-pydot

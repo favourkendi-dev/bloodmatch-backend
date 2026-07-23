@@ -61,32 +61,6 @@ class LeaderboardView(APIView):
         return Response(data)
 
 
-
-
-class PublicDonorListView(generics.ListAPIView):
-    """
-    GET /api/donors/
-    Public endpoint. Returns basic info about available donors.
-    """
-    serializer_class = DonorProfileSerializer
-    permission_classes = [permissions.AllowAny]
-
-    def get_queryset(self):
-        return DonorProfile.objects.filter(is_available=True).select_related('user')
-
-
-class PublicDonorListView(generics.ListAPIView):
-    """
-    GET /api/donors/
-    Public endpoint. Returns basic info about available donors.
-    """
-    serializer_class = DonorProfileSerializer
-    permission_classes = [permissions.AllowAny]
-
-    def get_queryset(self):
-        return DonorProfile.objects.filter(is_available=True).select_related('user')
-
-
 class PublicDonorListView(generics.ListAPIView):
     """
     GET /api/donors/

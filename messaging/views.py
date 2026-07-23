@@ -1,4 +1,5 @@
-from rest_framework import generics, permissions, status
+from drf_spectacular.utils import extend_schema
+from rest_framework import generics, permissions, status, serializers
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied, NotFound
@@ -101,6 +102,14 @@ class MessageListCreateView(generics.ListCreateAPIView):
             )
 
 
+class DetailMessageSerializer(serializers.Serializer):
+    detail = serializers.CharField()
+
+
+class UnreadCountSerializer(serializers.Serializer):
+    unread_count = serializers.IntegerField()
+
+
 class MarkMessageAsReadView(APIView):
     """
     POST /api/messages/<id>/read/
@@ -108,6 +117,7 @@ class MarkMessageAsReadView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(summary="Mark a message as read", request=None, responses=DetailMessageSerializer)
     def post(self, request, pk):
         try:
             message = Message.objects.get(pk=pk)
@@ -147,6 +157,7 @@ class UnreadMessageCountView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(summary="Get unread message count for the current user", responses=UnreadCountSerializer)
     def get(self, request):
         user = request.user
         count = Message.objects.filter(

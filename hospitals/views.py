@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema
 from rest_framework import generics, permissions, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -39,6 +40,7 @@ class AdminVerifyHospitalView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(summary="Verify a hospital account", request=None, responses=HospitalProfileSerializer)
     def post(self, request, pk):
         if not request.user.is_staff:
             raise PermissionDenied("Only admin users can verify hospitals.")
@@ -67,6 +69,7 @@ class AdminUnverifyHospitalView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(summary="Unverify a hospital account", request=None, responses=HospitalProfileSerializer)
     def post(self, request, pk):
         if not request.user.is_staff:
             raise PermissionDenied("Only admin users can unverify hospitals.")

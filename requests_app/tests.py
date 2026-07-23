@@ -166,7 +166,16 @@ class BloodRequestAPITests(APITestCase):
             status=Donation.Status.PENDING
         )
         self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.donor_token)
-        response = self.client.post('/api/requests/' + str(request.id) + '/accept/')
+        response = self.client.post(
+            '/api/requests/' + str(request.id) + '/accept/',
+            {
+                'feeling_well': True,
+                'no_recent_tattoo_or_piercing': True,
+                'no_recent_travel_risk': True,
+                'not_on_medication': True,
+                'meets_weight_minimum': True,
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['donor_confirmed'])
 

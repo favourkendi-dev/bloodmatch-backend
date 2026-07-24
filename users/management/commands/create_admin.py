@@ -3,7 +3,7 @@ from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
 
 class Command(BaseCommand):
-    help = "Creates a superuser from env vars if one doesn't already exist"
+    help = "Creates or updates a superuser with role='admin' from env vars"
 
     def handle(self, *args, **options):
         User = get_user_model()
@@ -15,9 +15,26 @@ class Command(BaseCommand):
             self.stdout.write("ADMIN_USERNAME/ADMIN_PASSWORD not set, skipping.")
             return
 
-        if User.objects.filter(username=username).exists():
-            self.stdout.write(f"Superuser '{username}' already exists, skipping.")
-            return
+        user, created = User.objects.get_or_create(
+            username=username,
+            defaults={'email': email, 'is_staff': True, 'is_superuser': True, 'role': 'admin'},
+        )
 
-        User.objects.create_superuser(username=username, email=email, password=password)
-        self.stdout.write(f"Superuser '{username}' created.")
+        if created:
+            user.set_password(password)
+            user.save()
+            self.stdout.write(f"Superuser '{username}' created with role='admin'.")
+        else:
+            changed = False
+            if user.role != 'admin':
+                user.role = 'admin'
+                changed = True
+            if not user.is_staff or not user.is_superuser:
+                user.is_staff = True
+                user.is_superuser = True
+                changed = True
+            if changed:
+                user.save()
+                self.stdout.write(f"Updated existing user '{username}' to admin role/permissions.")
+            else:
+                self.stdout.write(f"Superuser '{username}' already exists with correct role, skipping.")

@@ -16,6 +16,7 @@ Including another URLconf
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from .public_views import public_stats
 from django.urls import path, include
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 
@@ -28,6 +29,7 @@ urlpatterns = [
     path("api/admin/", include("admin_api.urls")),
     path("api/notifications/", include("notifications.urls")),
     path("api/messages/", include("messaging.urls")),
+    path("api/public/stats/", public_stats, name="public-stats"),
     # API Documentation
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
